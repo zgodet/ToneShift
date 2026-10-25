@@ -1,0 +1,107 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macOS,   os: macos-14 }
+          - { name: Windows, os: windows-2022 }
+          - { name: Linux,   os: ubuntu-22.04 }
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libx11-dev libxrandr-dev libxinerama-dev \
+            libxcursor-dev libxext-dev libfreetype-dev libfontconfig1-dev libgl1-mesa-dev
+
+      - name: Configure
+        run: >
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      - name: Run DSP tests
+        run: ./build/ToneShiftTests_artefacts/Release/ToneShiftTests
+
+      - name: Package
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          [[ "$GITHUB_REF_TYPE" == "tag" ]] || VERSION="dev-${GITHUB_SHA::7}"
+          PKG="ToneShift-${VERSION}-${{ matrix.name }}"
+          ART=build/ToneShift_artefacts/Release
+          mkdir -p "$PKG"
+          cp README.md AUTHORS "$PKG/"
+          for fmt in VST3 AU LV2 Standalone; do
+            [[ -d "$ART/$fmt" ]] && cp -R "$ART/$fmt" "$PKG/"
+          done
+          # Drop static helper libraries if any were copied
+          find "$PKG" -name "*.a" -delete -o -name "*.lib" -delete
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            ditto -c -k --keepParent "$PKG" "$PKG.zip"
+          elif [[ "$RUNNER_OS" == "Windows" ]]; then
+            7z a -tzip "$PKG.zip" "$PKG" > /dev/null
+          else
+            zip -qr "$PKG.zip" "$PKG"
+          fi
+          echo "PKG=$PKG" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PKG }}
+          path: ${{ env.PKG }}.zip
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: ToneShift ${{ github.ref_name }}
+          files: dist/*.zip
+          body: |
+            ToneShift by Audemo, a pitch shifter with formant correction.
+
+            **Downloads**
+            - **macOS** (Apple Silicon + Intel): VST3, AU, Standalone
+            - **Windows** (64-bit): VST3, Standalone
+            - **Linux** (x86-64): VST3, LV2, Standalone
+
+            **Install**
+            - VST3: copy `ToneShift.vst3` to your VST3 folder
+              (macOS `~/Library/Audio/Plug-Ins/VST3`, Windows `C:\Program Files\Common Files\VST3`, Linux `~/.vst3`)
+            - AU (macOS): copy `ToneShift.component` to `~/Library/Audio/Plug-Ins/Components`
+            - LV2 (Linux): copy `ToneShift.lv2` to `~/.lv2`
+
+            The macOS and Windows builds are not code-signed yet, so the system
+            may warn the first time you open them.

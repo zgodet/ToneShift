@@ -42,6 +42,11 @@ zero-latency mode for live use.
 | Mix        | 0 … 100 %          | Latency-aligned dry/wet                       |
 | Output     | -24 … +12 dB       |                                               |
 
+## Download
+
+Ready-to-use builds for macOS, Windows and Linux are on the
+[Releases page](https://github.com/zgodet/ToneShift/releases).
+
 ## Building
 
 You need CMake 3.22+ and a C++17 compiler. JUCE 8 is downloaded automatically.
