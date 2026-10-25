@@ -1,5 +1,5 @@
 /*
-    ToneShift by Audiemo
+    ToneShift by Audemo
     SpectralShifter: phase-vocoder pitch shifter with peak-locked phases
     and cepstral formant correction.
 */
@@ -8,7 +8,7 @@
 #include <juce_dsp/juce_dsp.h>
 #include <vector>
 
-namespace audiemo
+namespace audemo
 {
 
 class SpectralShifter
@@ -63,4 +63,4 @@ private:
     bool preserve = false;
 };
 
-} // namespace audiemo
+} // namespace audemo

@@ -33,9 +33,9 @@ if(UNIX AND NOT APPLE)
 endif()
 
 juce_add_plugin(ToneShift
-    COMPANY_NAME                "Audiemo"
-    COMPANY_WEBSITE             "https://audiemo.com"
-    BUNDLE_ID                   "com.audiemo.toneshift"
+    COMPANY_NAME                "Audemo"
+    COMPANY_WEBSITE             "https://audemo.com"
+    BUNDLE_ID                   "com.audemo.toneshift"
     PLUGIN_MANUFACTURER_CODE    Adem
     PLUGIN_CODE                 Tsft
     PRODUCT_NAME                "ToneShift"
@@ -48,7 +48,7 @@ juce_add_plugin(ToneShift
     COPY_PLUGIN_AFTER_BUILD     FALSE
     VST3_CATEGORIES             Fx Pitch Shift
     AU_MAIN_TYPE                kAudioUnitType_Effect
-    LV2URI                      "https://audiemo.com/plugins/toneshift"
+    LV2URI                      "https://audemo.com/plugins/toneshift"
     FORMATS                     ${TONESHIFT_FORMATS})
 
 target_sources(ToneShift PRIVATE

@@ -1,44 +1,37 @@
 /*
-    ToneShift by Audiemo
+    ToneShift by Audemo
 */
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "PluginProcessor.h"
-#include "gui/AudiemoLookAndFeel.h"
+#include "gui/AudemoLookAndFeel.h"
 
-/** Horizontal semitone scale. Click or drag to pick a pitch. */
-class PitchRuler final : public juce::Component,
-                         public juce::SettableTooltipClient
+/** Amber glass display showing pitch, and briefly the control being moved. */
+class AmberDisplay final : public juce::Component
 {
 public:
-    PitchRuler (juce::RangedAudioParameter& pitch, juce::RangedAudioParameter& fine);
-
+    void setReadout (float semitones, float cents, float ratio, const juce::String& modeText, const juce::String& latencyText);
+    void showMessage (const juce::String& name, const juce::String& value);
+    void tick();
     void paint (juce::Graphics&) override;
-    void mouseDown (const juce::MouseEvent&) override;
-    void mouseDrag (const juce::MouseEvent&) override;
-    void mouseUp (const juce::MouseEvent&) override;
 
 private:
-    float xForSemitone (float st) const;
-    void setFromX (float x);
-
-    juce::RangedAudioParameter& pitchParam;
-    juce::RangedAudioParameter& fineParam;
-    juce::ParameterAttachment pitchAttachment, fineAttachment;
+    float semis = 0.0f, ct = 0.0f, ratio = 1.0f;
+    juce::String mode, latency, msgName, msgValue;
+    int msgFrames = 0;
 };
 
-/** Small vertical peak meter. */
-class LevelMeter final : public juce::Component
+/** Analogue VU meter with needle ballistics and a peak lamp. */
+class VuMeter final : public juce::Component
 {
 public:
-    explicit LevelMeter (juce::String labelText) : label (std::move (labelText)) {}
-    void setLevel (float newLevel);
+    void setPeak (float linearPeak);
     void paint (juce::Graphics&) override;
 
 private:
-    juce::String label;
-    float level = 0.0f;
+    float needle = -20.0f; // VU
+    int peakHold = 0;
 };
 
 class ToneShiftEditor final : public juce::AudioProcessorEditor,
@@ -49,7 +42,6 @@ public:
     ~ToneShiftEditor() override;
 
     void paint (juce::Graphics&) override;
-    void paintOverChildren (juce::Graphics&) override;
     void resized() override;
 
 private:
@@ -57,27 +49,30 @@ private:
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
     void timerCallback() override;
-    void setupKnob (juce::Slider&, juce::Label&, const juce::String& name, bool bipolar, double resetValue);
+    void setupKnob (juce::Slider&, const juce::String& name, double resetValue, int ticks);
     void updateFormantEnablement();
-    void drawSection (juce::Graphics&, juce::Rectangle<int>, const juce::String& title);
+    void updateDisplay();
+    void renderFaceplate();
+    void drawKnobLegend (juce::Graphics&, const juce::Slider&, const juce::String& name,
+                         const juce::String& left, const juce::String& right);
 
     ToneShiftProcessor& processor;
-    audiemo::AudiemoLookAndFeel lnf;
+    audemo::AudemoLookAndFeel lnf;
 
     juce::Slider pitch, fine, formant, mix, output;
-    juce::Label pitchLabel, fineLabel, formantLabel, mixLabel, outputLabel;
-    juce::ToggleButton correction { "CORRECTION" };
+    juce::ToggleButton correction;
     juce::TextButton qualityButton { "QUALITY" }, lowLatencyButton { "LOW LATENCY" };
 
     std::unique_ptr<SliderAttachment> pitchAtt, fineAtt, formantAtt, mixAtt, outputAtt;
     std::unique_ptr<ButtonAttachment> correctionAtt;
     std::unique_ptr<juce::ParameterAttachment> modeAtt;
 
-    PitchRuler ruler;
-    LevelMeter inMeter { "IN" }, outMeter { "OUT" };
+    AmberDisplay display;
+    VuMeter vu;
     juce::TooltipWindow tooltips { this, 700 };
 
-    juce::Rectangle<int> fineArea, formantArea, pitchArea, outputArea;
+    juce::Image faceplate;
+    juce::Rectangle<int> header, formantGroup;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ToneShiftEditor)
 };

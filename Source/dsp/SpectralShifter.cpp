@@ -1,11 +1,11 @@
 /*
-    ToneShift by Audiemo
+    ToneShift by Audemo
 */
 #include "SpectralShifter.h"
 #include <cmath>
 #include <algorithm>
 
-namespace audiemo
+namespace audemo
 {
 
 namespace
@@ -309,4 +309,4 @@ void SpectralShifter::processFrame (Channel& ch) noexcept
     ch.outputPos = 0;
 }
 
-} // namespace audiemo
+} // namespace audemo

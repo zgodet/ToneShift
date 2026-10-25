@@ -1,11 +1,11 @@
 /*
-    ToneShift by Audiemo
+    ToneShift by Audemo
 */
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "Parameters.h"
 
-using namespace audiemo;
+using namespace audemo;
 
 ToneShiftProcessor::ToneShiftProcessor()
     : AudioProcessor (BusesProperties()

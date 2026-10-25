@@ -1,10 +1,10 @@
 /*
-    ToneShift by Audiemo
+    ToneShift by Audemo
 */
 #include "GrainShifter.h"
 #include <cmath>
 
-namespace audiemo
+namespace audemo
 {
 
 void GrainShifter::prepare (double sampleRate, int numChannels)
@@ -186,4 +186,4 @@ void GrainShifter::process (juce::AudioBuffer<float>& buffer) noexcept
     }
 }
 
-} // namespace audiemo
+} // namespace audemo

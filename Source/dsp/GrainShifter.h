@@ -1,5 +1,5 @@
 /*
-    ToneShift by Audiemo
+    ToneShift by Audemo
     GrainShifter: low-latency time-domain pitch shifter. A read head runs
     through a short delay line at the pitch ratio; when it drifts out of
     range it is spliced to a new position, chosen by cross-correlation so
@@ -10,7 +10,7 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <vector>
 
-namespace audiemo
+namespace audemo
 {
 
 class GrainShifter
@@ -45,4 +45,4 @@ private:
     juce::SmoothedValue<float> ratio { 1.0f };
 };
 
-} // namespace audiemo
+} // namespace audemo
