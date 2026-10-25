@@ -1,10 +1,10 @@
 /*
-    ToneShift by Audiemo
+    ToneShift by Audemo
 */
 #include "PluginEditor.h"
 #include "Parameters.h"
 
-using namespace audiemo;
+using namespace audemo;
 
 namespace
 {
@@ -14,139 +14,242 @@ namespace
             v = 0.0f;
         return (v > 0.0f ? "+" : "") + juce::String (v, decimals);
     }
-}
 
-//==============================================================================
-PitchRuler::PitchRuler (juce::RangedAudioParameter& p, juce::RangedAudioParameter& f)
-    : pitchParam (p), fineParam (f),
-      pitchAttachment (p, [this] (float) { repaint(); }),
-      fineAttachment (f, [this] (float) { repaint(); })
-{
-    pitchAttachment.sendInitialUpdate();
-    fineAttachment.sendInitialUpdate();
-    setMouseCursor (juce::MouseCursor::PointingHandCursor);
-    setTooltip ("Click or drag to set the pitch in semitones");
-}
-
-float PitchRuler::xForSemitone (float st) const
-{
-    const auto r = getLocalBounds().toFloat().reduced (14.0f, 0.0f);
-    return juce::jmap (st, -24.0f, 24.0f, r.getX(), r.getRight());
-}
-
-void PitchRuler::paint (juce::Graphics& g)
-{
-    using namespace colours;
-    const auto bounds = getLocalBounds().toFloat();
-    g.setColour (panel);
-    g.fillRoundedRectangle (bounds, 8.0f);
-    g.setColour (panelEdge);
-    g.drawRoundedRectangle (bounds.reduced (0.5f), 8.0f, 1.0f);
-
-    const float baseY = bounds.getY() + bounds.getHeight() * 0.58f;
-    const float st = pitchParam.convertFrom0to1 (pitchParam.getValue());
-    const float ct = fineParam.convertFrom0to1 (fineParam.getValue());
-    const float pos = st + ct / 100.0f;
-
-    // Highlight from zero to the current pitch.
-    const float x0 = xForSemitone (0.0f), x1 = xForSemitone (pos);
-    g.setColour (accentDim.withAlpha (0.55f));
-    g.fillRect (juce::Rectangle<float>::leftTopRightBottom (juce::jmin (x0, x1), baseY - 3.0f, juce::jmax (x0, x1), baseY + 3.0f));
-
-    for (int s = -24; s <= 24; ++s)
+    juce::Font monoFont (float size)
     {
-        const float x = xForSemitone ((float) s);
-        const bool octave = s % 12 == 0;
-        const bool fifth = std::abs (s % 12) == 7 || std::abs (s % 12) == 5;
-        const float len = octave ? 14.0f : (fifth ? 9.0f : 5.0f);
-
-        g.setColour (octave ? text : textDim.withAlpha (fifth ? 0.9f : 0.55f));
-        g.drawLine (x, baseY - len * 0.5f, x, baseY + len * 0.5f, octave ? 1.6f : 1.0f);
-
-        if (octave || std::abs (s) == 5 || std::abs (s) == 7)
-        {
-            g.setFont (juce::FontOptions (octave ? 11.5f : 10.0f, octave ? juce::Font::bold : juce::Font::plain));
-            g.drawText (s > 0 ? "+" + juce::String (s) : juce::String (s),
-                        juce::Rectangle<float> (x - 16.0f, baseY + 9.0f, 32.0f, 14.0f), juce::Justification::centred);
-        }
+        return juce::Font (juce::FontOptions (juce::Font::getDefaultMonospacedFontName(), size, juce::Font::bold));
     }
 
-    // Marker
-    g.setColour (accent);
-    juce::Path tri;
-    tri.addTriangle (x1 - 6.0f, bounds.getY() + 5.0f, x1 + 6.0f, bounds.getY() + 5.0f, x1, bounds.getY() + 14.0f);
-    g.fillPath (tri);
-    g.fillRoundedRectangle (x1 - 1.5f, bounds.getY() + 12.0f, 3.0f, baseY - bounds.getY() - 4.0f, 1.5f);
-}
+    // Amber text with a soft glow around it.
+    void drawGlowText (juce::Graphics& g, const juce::String& text, juce::Rectangle<float> r,
+                       juce::Justification just, const juce::Font& font, float alpha = 1.0f)
+    {
+        g.setFont (font);
+        g.setColour (colours::amber.withAlpha (0.13f * alpha));
+        for (auto d : { juce::Point<float> (-1.5f, 0.0f), { 1.5f, 0.0f }, { 0.0f, -1.5f }, { 0.0f, 1.5f } })
+            g.drawText (text, r.translated (d.x, d.y), just, false);
+        g.setColour (colours::amber.withAlpha (alpha));
+        g.drawText (text, r, just, false);
+    }
 
-void PitchRuler::setFromX (float x)
-{
-    const auto r = getLocalBounds().toFloat().reduced (14.0f, 0.0f);
-    const float st = std::round (juce::jmap (juce::jlimit (r.getX(), r.getRight(), x), r.getX(), r.getRight(), -24.0f, 24.0f));
-    pitchAttachment.setValueAsPartOfGesture (st);
+    constexpr float knobStart = juce::MathConstants<float>::pi * 1.25f;
+    constexpr float knobEnd   = juce::MathConstants<float>::pi * 2.75f;
 }
-
-void PitchRuler::mouseDown (const juce::MouseEvent& e)
-{
-    pitchAttachment.beginGesture();
-    setFromX ((float) e.x);
-}
-
-void PitchRuler::mouseDrag (const juce::MouseEvent& e) { setFromX ((float) e.x); }
-void PitchRuler::mouseUp (const juce::MouseEvent&)     { pitchAttachment.endGesture(); }
 
 //==============================================================================
-void LevelMeter::setLevel (float newLevel)
+void AmberDisplay::setReadout (float s, float c, float r, const juce::String& m, const juce::String& l)
 {
-    newLevel = juce::jlimit (0.0f, 2.0f, newLevel);
-    if (std::abs (newLevel - level) > 0.001f)
+    using juce::exactlyEqual;
+    if (! exactlyEqual (s, semis) || ! exactlyEqual (c, ct) || ! exactlyEqual (r, ratio) || m != mode || l != latency)
     {
-        level = newLevel;
+        semis = s; ct = c; ratio = r; mode = m; latency = l;
         repaint();
     }
 }
 
-void LevelMeter::paint (juce::Graphics& g)
+void AmberDisplay::showMessage (const juce::String& name, const juce::String& value)
+{
+    msgName = name;
+    msgValue = value;
+    msgFrames = 45; // ~1.5 s at 30 Hz
+    repaint();
+}
+
+void AmberDisplay::tick()
+{
+    if (msgFrames > 0 && --msgFrames == 0)
+        repaint();
+}
+
+void AmberDisplay::paint (juce::Graphics& g)
 {
     using namespace colours;
     auto r = getLocalBounds().toFloat();
-    auto labelArea = r.removeFromBottom (16.0f);
-    auto bar = r.withSizeKeepingCentre (8.0f, r.getHeight());
 
-    g.setColour (track);
-    g.fillRoundedRectangle (bar, 4.0f);
+    // Bezel and glass
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff5d5f63), 0.0f, r.getY(), juce::Colour (0xffe4e5e7), 0.0f, r.getBottom(), false));
+    g.fillRoundedRectangle (r, 6.0f);
+    auto glassArea = r.reduced (4.0f);
+    g.setColour (glass);
+    g.fillRoundedRectangle (glassArea, 4.0f);
+    g.setGradientFill (juce::ColourGradient (amber.withAlpha (0.08f), glassArea.getCentreX(), glassArea.getCentreY(),
+                                             juce::Colours::transparentBlack, glassArea.getX(), glassArea.getY(), true));
+    g.fillRoundedRectangle (glassArea, 4.0f);
 
-    const float db = juce::Decibels::gainToDecibels (level, -60.0f);
-    const float prop = juce::jmap (db, -60.0f, 6.0f, 0.0f, 1.0f);
-    auto filled = bar.withTrimmedTop (bar.getHeight() * (1.0f - juce::jlimit (0.0f, 1.0f, prop)));
-    g.setColour (db > -0.1f ? warn : accent);
-    g.fillRoundedRectangle (filled, 4.0f);
+    auto content = glassArea.reduced (14.0f, 8.0f);
+    auto big = content.removeFromLeft (content.getWidth() * 0.46f);
 
-    g.setColour (textDim);
-    g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-    g.drawText (label, labelArea, juce::Justification::centred);
+    // Large semitone readout over unlit "segments"
+    const auto bigFont = monoFont (big.getHeight() * 0.78f);
+    auto digits = big.withTrimmedRight (34.0f);
+    g.setFont (bigFont);
+    g.setColour (amberDim.withAlpha (0.35f));
+    g.drawText ("+88", digits, juce::Justification::centredRight, false);
+
+    const int whole = (int) std::lround (semis);
+    juce::String num = (whole > 0 ? "+" : (whole < 0 ? "-" : " ")) + juce::String (std::abs (whole)).paddedLeft ('0', 2);
+    drawGlowText (g, num, digits, juce::Justification::centredRight, bigFont);
+    drawGlowText (g, "ST", big.removeFromRight (30.0f).withTrimmedBottom (big.getHeight() * 0.18f),
+                  juce::Justification::bottomLeft, monoFont (13.0f), 0.85f);
+
+    // Right column: details or the control being moved
+    content.removeFromLeft (10.0f);
+    g.setColour (amberDim.withAlpha (0.8f));
+    g.fillRect (content.removeFromLeft (1.0f));
+    content.removeFromLeft (12.0f);
+
+    if (msgFrames > 0)
+    {
+        drawGlowText (g, msgName, content.removeFromTop (content.getHeight() * 0.42f), juce::Justification::bottomLeft, monoFont (13.0f), 0.75f);
+        drawGlowText (g, msgValue, content, juce::Justification::topLeft, monoFont (24.0f));
+        return;
+    }
+
+    const float lineH = content.getHeight() / 3.0f;
+    auto line = [&] (const juce::String& k, const juce::String& v)
+    {
+        auto row = content.removeFromTop (lineH);
+        drawGlowText (g, k, row, juce::Justification::centredLeft, monoFont (12.0f), 0.6f);
+        drawGlowText (g, v, row, juce::Justification::centredRight, monoFont (14.0f));
+    };
+    line ("FINE",  signedString (ct, 0) + " CT");
+    line ("RATIO", juce::String (ratio, 3));
+    line (mode, latency);
+}
+
+//==============================================================================
+void VuMeter::setPeak (float linearPeak)
+{
+    // 0 VU at -18 dBFS; needle eases toward the target like a real movement.
+    const float target = juce::jlimit (-20.0f, 3.5f, juce::Decibels::gainToDecibels (linearPeak, -60.0f) + 18.0f);
+    const float coeff = target > needle ? 0.35f : 0.12f;
+    const float next = needle + (target - needle) * coeff;
+
+    const bool clip = linearPeak >= 0.99f;
+    const int hold = clip ? 30 : juce::jmax (0, peakHold - 1);
+
+    if (std::abs (next - needle) > 0.01f || (hold > 0) != (peakHold > 0))
+    {
+        needle = next;
+        peakHold = hold;
+        repaint();
+    }
+    else
+    {
+        needle = next;
+        peakHold = hold;
+    }
+}
+
+void VuMeter::paint (juce::Graphics& g)
+{
+    using namespace colours;
+    auto r = getLocalBounds().toFloat();
+
+    // Bezel and cream face
+    g.setColour (juce::Colours::black.withAlpha (0.35f));
+    g.fillRoundedRectangle (r.translated (0.0f, 2.0f), 6.0f);
+    g.setGradientFill (juce::ColourGradient (charcoalHi, 0.0f, r.getY(), charcoal, 0.0f, r.getBottom(), false));
+    g.fillRoundedRectangle (r, 6.0f);
+    auto face = r.reduced (6.0f);
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xfff7e7b8), face.getCentreX(), face.getBottom(),
+                                             juce::Colour (0xffd9c48c), face.getX(), face.getY(), true));
+    g.fillRoundedRectangle (face, 3.0f);
+
+    const float span = 0.85f; // radians either side of vertical
+    // Fit the scale (plus its labels) inside the face both ways.
+    const float radius = juce::jmin (face.getHeight() * 0.92f, (face.getWidth() * 0.5f - 24.0f) / std::sin (span));
+    const juce::Point<float> pivot { face.getCentreX(), face.getY() + 30.0f + radius };
+
+    auto angleFor = [&] (float vu)
+    {
+        // Real VU scales are non-linear; this mapping crowds the low end the same way.
+        const float lin = std::pow (10.0f, vu / 20.0f);
+        const float lo = std::pow (10.0f, -20.0f / 20.0f), hi = std::pow (10.0f, 3.0f / 20.0f);
+        return -span + 2.0f * span * (lin - lo) / (hi - lo);
+    };
+
+    g.saveState();
+    g.reduceClipRegion (face.toNearestInt());
+
+    // Scale arc (black, red above 0)
+    juce::Path arc, red;
+    arc.addCentredArc (pivot.x, pivot.y, radius, radius, 0.0f, angleFor (-20.0f), angleFor (0.0f), true);
+    red.addCentredArc (pivot.x, pivot.y, radius, radius, 0.0f, angleFor (0.0f), angleFor (3.0f), true);
+    g.setColour (engraving);
+    g.strokePath (arc, juce::PathStrokeType (1.4f));
+    g.setColour (lampRed);
+    g.strokePath (red, juce::PathStrokeType (4.0f));
+
+    g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
+    for (int mark : { -20, -10, -7, -5, -3, -2, -1, 0, 1, 2, 3 })
+    {
+        const float vu = (float) mark;
+        const float a = angleFor (vu);
+        auto p1 = pivot.getPointOnCircumference (radius, a);
+        auto p2 = pivot.getPointOnCircumference (radius + 6.0f, a);
+        g.setColour (mark > 0 ? lampRed : engraving);
+        g.drawLine ({ p1, p2 }, 1.2f);
+        if (mark == -20 || mark == -10 || mark == -5 || mark == -3 || mark == 0 || mark == 3)
+        {
+            auto lp = pivot.getPointOnCircumference (radius + 15.0f, a);
+            const juce::String txt = mark > 0 ? "+" + juce::String (mark) : juce::String (std::abs (mark));
+            g.drawText (txt, juce::Rectangle<float> (24.0f, 12.0f).withCentre (lp), juce::Justification::centred);
+        }
+    }
+
+    g.setColour (engraving);
+    g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
+    g.drawText ("VU", face.withTrimmedTop (face.getHeight() * 0.45f).withHeight (20.0f), juce::Justification::centred);
+
+    // Needle
+    const float na = angleFor (needle);
+    const auto tip = pivot.getPointOnCircumference (radius + 4.0f, na);
+    g.setColour (juce::Colours::black.withAlpha (0.18f));
+    g.drawLine ({ pivot.translated (2.0f, 0.0f), tip.translated (2.0f, 1.0f) }, 1.6f);
+    g.setColour (juce::Colour (0xff1a1a1a));
+    g.drawLine ({ pivot, tip }, 1.4f);
+    g.restoreState();
+
+    // Peak lamp
+    auto lamp = juce::Rectangle<float> (8.0f, 8.0f).withPosition (face.getRight() - 14.0f, face.getY() + 6.0f);
+    if (peakHold > 0)
+    {
+        g.setColour (lampRed.withAlpha (0.35f));
+        g.fillEllipse (lamp.expanded (3.0f));
+    }
+    g.setColour (peakHold > 0 ? lampRed.brighter (0.3f) : lampRed.darker (1.6f));
+    g.fillEllipse (lamp);
+    g.setColour (engraving);
+    g.setFont (juce::FontOptions (8.0f, juce::Font::bold));
+    g.drawText ("PEAK", lamp.translated (-30.0f, 0.0f).withWidth (26.0f), juce::Justification::centredRight);
 }
 
 //==============================================================================
 ToneShiftEditor::ToneShiftEditor (ToneShiftProcessor& p)
-    : AudioProcessorEditor (p), processor (p),
-      ruler (*p.apvts.getParameter (params::pitch), *p.apvts.getParameter (params::fine))
+    : AudioProcessorEditor (p), processor (p)
 {
     setLookAndFeel (&lnf);
 
-    setupKnob (pitch,   pitchLabel,   "PITCH",   true,  0.0);
-    setupKnob (fine,    fineLabel,    "FINE",    true,  0.0);
-    setupKnob (formant, formantLabel, "SHIFT",   true,  0.0);
-    setupKnob (mix,     mixLabel,     "MIX",     false, 100.0);
-    setupKnob (output,  outputLabel,  "OUTPUT",  true,  0.0);
+    setupKnob (pitch,   "PITCH",   0.0,   49);
+    setupKnob (fine,    "FINE",    0.0,   21);
+    setupKnob (formant, "SHIFT",   0.0,   25);
+    setupKnob (mix,     "MIX",     100.0, 11);
+    setupKnob (output,  "OUTPUT",  0.0,   13);
 
     pitch.getProperties().set ("large", true);
-    pitch.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    pitch.getProperties().set ("majorEvery", 12);
+    fine.getProperties().set ("majorEvery", 10);
+    formant.getProperties().set ("majorEvery", 12);
+    output.getProperties().set ("majorEvery", 8); // -24, -8 ... 0 dB sits on a minor tick otherwise
     pitch.setMouseDragSensitivity (400);
+
     pitch.setTooltip ("Pitch shift in semitones (double-click to reset)");
     fine.setTooltip ("Fine tuning in cents");
     formant.setTooltip ("Moves the vocal character (formants) independently of pitch");
-    correction.setTooltip ("Keep the original formants so voices don't sound like chipmunks or giants");
+    correction.setTooltip ("Formant correction: keeps voices from sounding like chipmunks or giants");
+    mix.setTooltip ("Dry/wet blend (latency aligned)");
+    output.setTooltip ("Output level");
 
     auto& apvts = p.apvts;
     pitchAtt   = std::make_unique<SliderAttachment> (apvts, params::pitch, pitch);
@@ -159,7 +262,6 @@ ToneShiftEditor::ToneShiftEditor (ToneShiftProcessor& p)
     correctionAtt = std::make_unique<ButtonAttachment> (apvts, params::preserve, correction);
     correction.onStateChange = [this] { updateFormantEnablement(); };
 
-    // Mode: two segmented buttons bound to the choice parameter.
     for (auto* b : { &qualityButton, &lowLatencyButton })
     {
         b->setClickingTogglesState (false);
@@ -175,21 +277,22 @@ ToneShiftEditor::ToneShiftEditor (ToneShiftProcessor& p)
             qualityButton.setToggleState (! low, juce::dontSendNotification);
             lowLatencyButton.setToggleState (low, juce::dontSendNotification);
             updateFormantEnablement();
-            repaint();
+            updateDisplay();
         });
     qualityButton.onClick    = [this] { modeAtt->setValueAsCompleteGesture (0.0f); };
     lowLatencyButton.onClick = [this] { modeAtt->setValueAsCompleteGesture (1.0f); };
     modeAtt->sendInitialUpdate();
 
-    addAndMakeVisible (ruler);
-    addAndMakeVisible (inMeter);
-    addAndMakeVisible (outMeter);
+    addAndMakeVisible (display);
+    addAndMakeVisible (vu);
 
-    pitch.onValueChange = [this] { repaint (pitchArea); repaint (fineArea); };
-    fine.onValueChange  = [this] { repaint (pitchArea); repaint (fineArea); };
+    pitch.onValueChange = [this] { updateDisplay(); };
+    fine.onValueChange  = [this] { updateDisplay(); };
+    for (auto* s : { &formant, &mix, &output })
+        s->onValueChange = [this, s] { display.showMessage (s->getName(), s->getTextFromValue (s->getValue()).toUpperCase()); };
 
     updateFormantEnablement();
-    sendLookAndFeelChange(); // rebuild slider text boxes with our look
+    updateDisplay();
     setSize (820, 470);
     startTimerHz (30);
 }
@@ -199,20 +302,15 @@ ToneShiftEditor::~ToneShiftEditor()
     setLookAndFeel (nullptr);
 }
 
-void ToneShiftEditor::setupKnob (juce::Slider& s, juce::Label& l, const juce::String& name, bool bipolar, double resetValue)
+void ToneShiftEditor::setupKnob (juce::Slider& s, const juce::String& name, double resetValue, int ticks)
 {
+    s.setName (name);
     s.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    s.setRotaryParameters (juce::degreesToRadians (225.0f), juce::degreesToRadians (495.0f), true);
-    s.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 90, 18);
+    s.setRotaryParameters (knobStart, knobEnd, true);
+    s.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     s.setDoubleClickReturnValue (true, resetValue);
-    s.getProperties().set ("bipolar", bipolar);
+    s.getProperties().set ("ticks", ticks);
     addAndMakeVisible (s);
-
-    l.setText (name, juce::dontSendNotification);
-    l.setJustificationType (juce::Justification::centred);
-    l.setFont (juce::FontOptions (11.5f, juce::Font::bold));
-    l.setColour (juce::Label::textColourId, colours::textDim);
-    addAndMakeVisible (l);
 }
 
 void ToneShiftEditor::updateFormantEnablement()
@@ -220,162 +318,209 @@ void ToneShiftEditor::updateFormantEnablement()
     const bool spectralMode = ! lowLatencyButton.getToggleState();
     correction.setEnabled (spectralMode);
     formant.setEnabled (spectralMode && correction.getToggleState());
-    formantLabel.setEnabled (formant.isEnabled());
-    formantLabel.setAlpha (formant.isEnabled() ? 1.0f : 0.4f);
-    correction.setAlpha (spectralMode ? 1.0f : 0.4f);
+    repaint (formantGroup);
+}
+
+void ToneShiftEditor::updateDisplay()
+{
+    const float st = (float) pitch.getValue();
+    const float ct = (float) fine.getValue();
+    const float ratio = std::pow (2.0f, (st + ct * 0.01f) / 12.0f);
+    const bool low = lowLatencyButton.getToggleState();
+
+    juce::String lat = "0 MS";
+    if (! low)
+    {
+        const int samples = processor.getLatencySamples();
+        const double sr = processor.getSampleRate();
+        lat = (samples > 0 && sr > 0) ? juce::String (samples * 1000.0 / sr, 1) + " MS" : juce::String ("--");
+    }
+
+    display.setReadout (st, ct, ratio, low ? "LOW LAT" : "QUALITY", lat);
 }
 
 void ToneShiftEditor::timerCallback()
 {
-    inMeter.setLevel (processor.inputLevel.load());
-    outMeter.setLevel (processor.outputLevel.load());
+    vu.setPeak (processor.outputLevel.load());
+    display.tick();
+    updateDisplay(); // picks up latency once the host has prepared the plugin
 }
 
-void ToneShiftEditor::drawSection (juce::Graphics& g, juce::Rectangle<int> r, const juce::String& title)
+void ToneShiftEditor::renderFaceplate()
 {
     using namespace colours;
-    g.setColour (panel);
-    g.fillRoundedRectangle (r.toFloat(), 10.0f);
-    g.setColour (panelEdge);
-    g.drawRoundedRectangle (r.toFloat().reduced (0.5f), 10.0f, 1.0f);
+    const int w = juce::jmax (1, getWidth()), h = juce::jmax (1, getHeight());
+    faceplate = juce::Image (juce::Image::RGB, w, h, true);
+    juce::Graphics g (faceplate);
 
-    g.setColour (textDim);
-    g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
-    g.drawText (title, r.withHeight (26).withTrimmedLeft (14), juce::Justification::centredLeft);
+    g.setGradientFill (juce::ColourGradient (plateLight, 0.0f, 0.0f, plateDark, 0.0f, (float) h, false));
+    g.fillAll();
+
+    // Brushed grain: fixed seed so the plate looks the same every time.
+    juce::Random rnd (0x7a11);
+    for (int y = 0; y < h; ++y)
+    {
+        g.setColour ((rnd.nextBool() ? juce::Colours::white : juce::Colours::black).withAlpha (rnd.nextFloat() * 0.07f));
+        g.drawHorizontalLine (y, 0.0f, (float) w);
+    }
+    for (int i = 0; i < 900; ++i)
+    {
+        const float y = rnd.nextFloat() * (float) h;
+        const float x = rnd.nextFloat() * (float) w;
+        const float len = 40.0f + rnd.nextFloat() * 220.0f;
+        g.setColour ((rnd.nextBool() ? juce::Colours::white : juce::Colours::black).withAlpha (0.03f + rnd.nextFloat() * 0.05f));
+        g.drawHorizontalLine ((int) y, x, x + len);
+    }
+
+    // Soft light falloff
+    g.setGradientFill (juce::ColourGradient (juce::Colours::white.withAlpha (0.18f), (float) w * 0.3f, 0.0f,
+                                             juce::Colours::transparentBlack, (float) w * 0.3f, (float) h * 0.7f, true));
+    g.fillAll();
+}
+
+void ToneShiftEditor::drawKnobLegend (juce::Graphics& g, const juce::Slider& s, const juce::String& name,
+                                      const juce::String& left, const juce::String& right)
+{
+    const auto b = s.getBounds().toFloat();
+    const auto c = b.getCentre();
+    const float r = juce::jmin (b.getWidth(), b.getHeight()) * 0.5f;
+    const float alpha = s.isEnabled() ? 1.0f : 0.45f;
+
+    g.saveState();
+    g.setOpacity (alpha);
+    drawEngravedText (g, name, juce::Rectangle<float> (b.getWidth() + 40.0f, 16.0f).withCentre ({ c.x, b.getY() - 9.0f }),
+                      juce::Justification::centred, 12.0f);
+
+    const auto pl = c.getPointOnCircumference (r + 2.0f, knobStart).translated (4.0f, 10.0f);
+    const auto pr = c.getPointOnCircumference (r + 2.0f, knobEnd).translated (-4.0f, 10.0f);
+    drawEngravedText (g, left,  juce::Rectangle<float> (44.0f, 12.0f).withCentre (pl), juce::Justification::centred, 9.5f, false);
+    drawEngravedText (g, right, juce::Rectangle<float> (44.0f, 12.0f).withCentre (pr), juce::Justification::centred, 9.5f, false);
+    g.restoreState();
 }
 
 void ToneShiftEditor::paint (juce::Graphics& g)
 {
     using namespace colours;
-    g.fillAll (background);
+    if (faceplate.isNull() || faceplate.getWidth() != getWidth() || faceplate.getHeight() != getHeight())
+        renderFaceplate();
+    g.drawImageAt (faceplate, 0, 0);
 
-    // Header
-    auto header = getLocalBounds().removeFromTop (60).reduced (20, 0);
-    g.setColour (accent);
-    g.fillRoundedRectangle (juce::Rectangle<float> ((float) header.getX(), 22.0f, 4.0f, 18.0f), 2.0f);
+    // Header strip
+    auto hb = header.toFloat();
+    g.setGradientFill (juce::ColourGradient (charcoalHi, 0.0f, hb.getY(), charcoal, 0.0f, hb.getBottom(), false));
+    g.fillRect (hb);
+    g.setColour (juce::Colours::black.withAlpha (0.5f));
+    g.fillRect (hb.withTop (hb.getBottom()).withHeight (2.0f));
 
-    g.setColour (text);
+    auto text = hb.reduced (26.0f, 0.0f);
+    g.setColour (silkCream);
+    g.setFont (juce::FontOptions (13.0f, juce::Font::bold));
+    g.drawText ("A U D E M O", text, juce::Justification::centredLeft);
+    g.setColour (amber);
+    g.fillEllipse (text.getX() + 100.0f, hb.getCentreY() - 3.0f, 6.0f, 6.0f);
+    g.setColour (silkCream);
     g.setFont (juce::FontOptions (22.0f, juce::Font::bold));
-    g.drawText ("ToneShift", header.withTrimmedLeft (14), juce::Justification::centredLeft);
+    g.drawText ("ToneShift", text.withTrimmedLeft (130.0f), juce::Justification::centredLeft);
+    g.setColour (silkCream.withAlpha (0.55f));
+    g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
+    g.drawText ("PITCH PROCESSOR", text.withTrimmedLeft (248.0f), juce::Justification::centredLeft);
 
-    g.setColour (textDim);
-    g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-    g.drawText ("A U D I E M O", header.withTrimmedLeft (130), juce::Justification::centredLeft);
+    // Screws
+    const float sy1 = hb.getBottom() + 14.0f, sy2 = (float) getHeight() - 14.0f;
+    drawScrew (g, { 14.0f, sy1 }, 5.5f, 0.6f);
+    drawScrew (g, { (float) getWidth() - 14.0f, sy1 }, 5.5f, 2.1f);
+    drawScrew (g, { 14.0f, sy2 }, 5.5f, 1.2f);
+    drawScrew (g, { (float) getWidth() - 14.0f, sy2 }, 5.5f, 0.2f);
 
-    drawSection (g, fineArea, "TUNING");
-    drawSection (g, pitchArea, "PITCH");
-    drawSection (g, formantArea, "FORMANT");
-    drawSection (g, outputArea, "OUTPUT");
+    // Knob legends
+    drawKnobLegend (g, fine,    "FINE",    "-100", "+100");
+    drawKnobLegend (g, formant, "SHIFT",   "-12",  "+12");
+    drawKnobLegend (g, mix,     "MIX",     "DRY",  "WET");
+    drawKnobLegend (g, output,  "OUTPUT",  "-24",  "+12");
 
-    // Tuning summary under the fine knob
-    const float semis = (float) pitch.getValue() + (float) fine.getValue() * 0.01f;
-    const float ratio = std::pow (2.0f, semis / 12.0f);
-    auto info = fineArea.reduced (14).removeFromBottom (64);
-    g.setFont (juce::FontOptions (11.0f));
-    auto row = [&] (const juce::String& k, const juce::String& v)
+    // Pitch dial numbers
     {
-        auto line = info.removeFromTop (20);
-        g.setColour (textDim);
-        g.drawText (k, line, juce::Justification::centredLeft);
-        g.setColour (text);
-        g.drawText (v, line, juce::Justification::centredRight);
-    };
-    row ("Total", signedString (semis * 100.0f, 0) + " ct");
-    row ("Ratio", juce::String::charToString (0x00d7) + juce::String (ratio, 3));
-    const bool low = lowLatencyButton.getToggleState();
-    const double sr = processor.getSampleRate() > 0 ? processor.getSampleRate() : 48000.0;
-    const int latency = processor.getLatencySamples();
-    row ("Latency", low ? juce::String ("none")
-                        : (latency > 0 ? juce::String (latency * 1000.0 / sr, 1) + " ms" : juce::String ("-")));
+        const auto b = pitch.getBounds().toFloat();
+        const auto c = b.getCentre();
+        const float r = juce::jmin (b.getWidth(), b.getHeight()) * 0.5f + 20.0f;
+        for (int st : { -24, -12, 0, 12, 24 })
+        {
+            const float a = knobStart + (knobEnd - knobStart) * (float) (st + 24) / 48.0f;
+            const auto p = c.getPointOnCircumference (r, a);
+            drawEngravedText (g, st > 0 ? "+" + juce::String (st) : juce::String (st),
+                              juce::Rectangle<float> (34.0f, 14.0f).withCentre (p), juce::Justification::centred, 11.5f);
+        }
+        drawEngravedText (g, "SEMITONES", juce::Rectangle<float> (120.0f, 14.0f).withCentre ({ c.x, b.getBottom() - 6.0f }),
+                          juce::Justification::centred, 10.0f);
+    }
 
-    // Footer
-    auto footer = getLocalBounds().removeFromBottom (34).reduced (22, 0);
-    g.setColour (textDim.withAlpha (0.7f));
-    g.setFont (juce::FontOptions (11.0f));
-    g.drawText ("Audiemo ToneShift  v" JucePlugin_VersionString, footer, juce::Justification::centredLeft);
-    g.drawText ("Double-click a control to reset", footer, juce::Justification::centredRight);
-}
+    // Formant group outline
+    {
+        auto fg = formantGroup.toFloat();
+        g.setColour (engraveHi);
+        g.drawRoundedRectangle (fg.translated (0.0f, 1.0f), 6.0f, 1.0f);
+        g.setColour (engraving.withAlpha (0.6f));
+        g.drawRoundedRectangle (fg, 6.0f, 1.0f);
+        auto title = juce::Rectangle<float> (fg.getX() + 12.0f, fg.getY() - 7.0f, 84.0f, 14.0f);
+        g.saveState();
+        g.reduceClipRegion (title.toNearestInt());
+        g.drawImageAt (faceplate, 0, 0);
+        g.restoreState();
+        drawEngravedText (g, "FORMANT", title, juce::Justification::centred, 11.0f);
+        g.saveState();
+        g.setOpacity (correction.isEnabled() ? 1.0f : 0.45f);
+        drawEngravedText (g, "CORRECTION", correction.getBounds().toFloat().withY ((float) correction.getBottom() + 4.0f).withHeight (14.0f).expanded (20.0f, 0.0f),
+                          juce::Justification::centred, 10.0f);
+        g.restoreState();
+    }
 
-void ToneShiftEditor::paintOverChildren (juce::Graphics& g)
-{
-    using namespace colours;
-    // Big readout inside the pitch knob.
-    const auto c = pitch.getBounds().toFloat().getCentre();
-    const float st = (float) pitch.getValue();
-    const float ct = (float) fine.getValue();
-
-    g.setColour (text);
-    g.setFont (juce::FontOptions (40.0f, juce::Font::bold));
-    g.drawText (signedString (st, 0), juce::Rectangle<float> (140.0f, 46.0f).withCentre (c.translated (0.0f, -8.0f)),
-                juce::Justification::centred);
-
-    g.setColour (textDim);
-    g.setFont (juce::FontOptions (12.0f, juce::Font::bold));
-    const juce::String sub = std::abs (ct) > 0.5f ? "SEMITONES  " + signedString (ct, 0) + " ct" : juce::String ("SEMITONES");
-    g.drawText (sub, juce::Rectangle<float> (140.0f, 16.0f).withCentre (c.translated (0.0f, 22.0f)),
-                juce::Justification::centred);
+    // Model plate
+    drawEngravedText (g, juce::String (juce::CharPointer_UTF8 ("MODEL TS-1   \xc2\xb7   AUDEMO   \xc2\xb7   v")) + JucePlugin_VersionString,
+                      juce::Rectangle<float> (0.0f, (float) getHeight() - 24.0f, (float) getWidth(), 14.0f),
+                      juce::Justification::centred, 9.5f);
 }
 
 void ToneShiftEditor::resized()
 {
     auto r = getLocalBounds();
-    auto header = r.removeFromTop (60).reduced (20, 14);
-    lowLatencyButton.setBounds (header.removeFromRight (110));
-    header.removeFromRight (6);
-    qualityButton.setBounds (header.removeFromRight (90));
-
-    r.removeFromBottom (34);
-    r.reduce (20, 0);
-
-    auto rulerArea = r.removeFromBottom (64);
-    ruler.setBounds (rulerArea);
-    r.removeFromBottom (14);
-
-    auto main = r.withTrimmedTop (4);
-    fineArea = main.removeFromLeft (164);
-    main.removeFromLeft (14);
-    outputArea = main.removeFromRight (164);
-    main.removeFromRight (14);
-    formantArea = main.removeFromRight (164);
-    main.removeFromRight (14);
-    pitchArea = main;
-
-    auto placeKnob = [] (juce::Slider& s, juce::Label& l, juce::Rectangle<int> area)
+    header = r.removeFromTop (58);
     {
-        l.setBounds (area.removeFromTop (16));
-        s.setBounds (area);
-    };
-
-    // Tuning
-    {
-        auto a = fineArea.reduced (12).withTrimmedTop (18);
-        placeKnob (fine, fineLabel, a.removeFromTop (120));
+        auto h = header.reduced (24, 14);
+        lowLatencyButton.setBounds (h.removeFromRight (128));
+        h.removeFromRight (10);
+        qualityButton.setBounds (h.removeFromRight (104));
     }
 
-    // Pitch (large)
+    r.removeFromBottom (28);
+    r.reduce (34, 0);
+    r.removeFromTop (30);
+
+    auto left = r.removeFromLeft (190);
+    auto right = r.removeFromRight (210);
+    auto centre = r.reduced (16, 0);
+
+    // Left: fine, then formant group
+    fine.setBounds (left.removeFromTop (128).withSizeKeepingCentre (118, 118));
+    left.removeFromTop (26);
+    formantGroup = left.withTrimmedBottom (8);
     {
-        auto a = pitchArea.reduced (12).withTrimmedTop (14);
-        pitchLabel.setVisible (false);
-        pitch.setBounds (a.withSizeKeepingCentre (juce::jmin (a.getWidth(), a.getHeight()), juce::jmin (a.getWidth(), a.getHeight())));
+        auto fg = formantGroup.reduced (12, 14).withTrimmedTop (6);
+        auto sw = fg.removeFromLeft (64);
+        correction.setBounds (sw.withSizeKeepingCentre (52, 46).translated (0, -12));
+        formant.setBounds (fg.withSizeKeepingCentre (juce::jmin (fg.getWidth(), fg.getHeight() - 14), juce::jmin (fg.getWidth(), fg.getHeight() - 14))
+                             .translated (0, 8));
     }
 
-    // Formant
-    {
-        auto a = formantArea.reduced (12).withTrimmedTop (20);
-        correction.setBounds (a.removeFromTop (24).reduced (4, 0));
-        a.removeFromTop (8);
-        placeKnob (formant, formantLabel, a.removeFromTop (120));
-    }
+    // Centre: amber display above the big pitch dial
+    display.setBounds (centre.removeFromTop (92));
+    centre.removeFromTop (24);
+    const int dial = juce::jmin (centre.getWidth() - 60, centre.getHeight() - 18);
+    pitch.setBounds (centre.withSizeKeepingCentre (dial, dial).withY (centre.getY() + 4));
 
-    // Output: mix + gain knobs, meters on the right
-    {
-        auto a = outputArea.reduced (10).withTrimmedTop (18);
-        auto meters = a.removeFromRight (44);
-        inMeter.setBounds (meters.removeFromLeft (22));
-        outMeter.setBounds (meters);
-        const int h = a.getHeight() / 2;
-        placeKnob (mix, mixLabel, a.removeFromTop (h - 4));
-        a.removeFromTop (8);
-        placeKnob (output, outputLabel, a);
-    }
+    // Right: VU, then mix and output
+    vu.setBounds (right.removeFromTop (140));
+    right.removeFromTop (52);
+    auto knobs = right.removeFromTop (110);
+    mix.setBounds (knobs.removeFromLeft (knobs.getWidth() / 2).withSizeKeepingCentre (92, 92));
+    output.setBounds (knobs.withSizeKeepingCentre (92, 92));
 }

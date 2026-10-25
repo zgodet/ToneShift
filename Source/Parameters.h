@@ -1,12 +1,12 @@
 /*
-    ToneShift by Audiemo
+    ToneShift by Audemo
     Parameter IDs and layout.
 */
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
-namespace audiemo::params
+namespace audemo::params
 {
     inline constexpr const char* pitch    = "pitch";     // semitones
     inline constexpr const char* fine     = "fine";      // cents

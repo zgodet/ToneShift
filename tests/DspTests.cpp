@@ -1,5 +1,5 @@
 /*
-    ToneShift by Audiemo - offline DSP checks.
+    ToneShift by Audemo - offline DSP checks.
     Runs each engine on test signals and checks pitch accuracy and transparency.
 */
 #include <juce_dsp/juce_dsp.h>
@@ -8,7 +8,7 @@
 #include <cstdio>
 #include <cmath>
 
-using namespace audiemo;
+using namespace audemo;
 
 static constexpr double fs = 48000.0;
 static int failures = 0;

@@ -1,4 +1,4 @@
-# ToneShift by Audiemo
+# ToneShift by Audemo
 
 ToneShift is a pitch shifter plugin with formant correction. It moves audio up or
 down by up to two octaves, keeps voices sounding natural, and offers a
@@ -24,8 +24,10 @@ zero-latency mode for live use.
   moves the formants on their own (±12 st) for gender and character effects.
 - **Mix:** dry/wet blend. The dry signal is delayed to line up with the wet
   signal, so parallel blends don't comb-filter.
-- **Output:** -24 to +12 dB, with input and output meters.
-- **Pitch ruler:** click or drag to jump to any semitone.
+- **Output:** -24 to +12 dB, with an analogue-style VU meter and peak lamp.
+- **Vintage hardware interface:** brushed-metal faceplate, cream knobs with
+  printed scales, and an amber display that shows the pitch, ratio and latency,
+  plus the value of any control while you move it.
 - Every control is automatable. Double-click any knob to reset it.
 
 ## Controls
@@ -91,7 +93,7 @@ Source/
   Parameters.h           parameter definitions
   dsp/SpectralShifter.*  Quality engine (phase vocoder + formant correction)
   dsp/GrainShifter.*     Low Latency engine
-  gui/AudiemoLookAndFeel.h  colours and control styling
+  gui/AudemoLookAndFeel.h   vintage hardware styling
 tests/DspTests.cpp       offline DSP checks
 ```
 
@@ -118,4 +120,4 @@ ToneShift is built on [JUCE](https://juce.com). To distribute builds you need
 either a JUCE commercial license or to release ToneShift under the AGPLv3.
 Choose a license for this project and add a `LICENSE` file before publishing.
 
-© Audiemo
+© Audemo

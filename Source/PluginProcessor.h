@@ -1,5 +1,5 @@
 /*
-    ToneShift by Audiemo
+    ToneShift by Audemo
 */
 #pragma once
 
@@ -46,8 +46,8 @@ private:
     void updateLatency (int mode);
     void delayDry (juce::AudioBuffer<float>& dry, int delaySamples);
 
-    audiemo::SpectralShifter spectral;
-    audiemo::GrainShifter grain;
+    audemo::SpectralShifter spectral;
+    audemo::GrainShifter grain;
 
     juce::AudioBuffer<float> dryBuffer, dryDelay;
     int dryDelayPos = 0, currentMode = -1, currentLatency = 0;
