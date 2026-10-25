@@ -1,6 +1,6 @@
 /*
     ToneShift by Audemo
-    Vintage hardware styling: brushed faceplate, cream knobs, lamp buttons,
+    Vintage hardware styling: dark brushed faceplate, ivory knobs, lamp buttons,
     bat-handle toggle switch.
 */
 #pragma once
@@ -12,14 +12,15 @@ namespace audemo
 
 namespace colours
 {
-    inline const juce::Colour plateLight { 0xffd3d5d8 };
-    inline const juce::Colour plateDark  { 0xffa7abb1 };
-    inline const juce::Colour charcoal   { 0xff262523 };
-    inline const juce::Colour charcoalHi { 0xff3a3936 };
-    inline const juce::Colour engraving  { 0xff2b2b2b };
-    inline const juce::Colour engraveHi  { 0x99ffffff };
-    inline const juce::Colour cream      { 0xfff1e8d0 };
-    inline const juce::Colour creamShade { 0xffc9bc98 };
+    inline const juce::Colour plateLight { 0xff3a3b3e }; // gunmetal
+    inline const juce::Colour plateDark  { 0xff1c1d1f };
+    inline const juce::Colour charcoal   { 0xff121110 };
+    inline const juce::Colour charcoalHi { 0xff262422 };
+    inline const juce::Colour engraving  { 0xffd8ceb0 }; // cream silkscreen on the plate
+    inline const juce::Colour engraveHi  { 0xcc000000 }; // its drop shadow
+    inline const juce::Colour ink        { 0xff1e1c19 }; // dark print on ivory/VU faces
+    inline const juce::Colour cream      { 0xffe0d3b1 }; // aged ivory
+    inline const juce::Colour creamShade { 0xffa3946d };
     inline const juce::Colour amber      { 0xffffb547 };
     inline const juce::Colour amberDim   { 0xff5a3a10 };
     inline const juce::Colour glass      { 0xff17120c };
@@ -27,7 +28,7 @@ namespace colours
     inline const juce::Colour silkCream  { 0xffe9e0c6 }; // print on charcoal
 }
 
-/** Text that looks stamped into metal: dark glyphs with a light lower edge. */
+/** Silkscreened legend: cream glyphs with a soft shadow on the dark plate. */
 inline void drawEngravedText (juce::Graphics& g, const juce::String& text, juce::Rectangle<float> area,
                               juce::Justification just, float size, bool bold = true)
 {
@@ -42,10 +43,10 @@ inline void drawScrew (juce::Graphics& g, juce::Point<float> c, float r, float a
 {
     g.setColour (juce::Colours::black.withAlpha (0.25f));
     g.fillEllipse (juce::Rectangle<float> (r * 2.0f + 2.0f, r * 2.0f + 2.0f).withCentre (c.translated (0.0f, 1.0f)));
-    g.setGradientFill (juce::ColourGradient (juce::Colour (0xffeeeeee), c.x - r, c.y - r,
-                                             juce::Colour (0xff7d8086), c.x + r, c.y + r, false));
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xffa4a6aa), c.x - r, c.y - r,
+                                             juce::Colour (0xff3a3c40), c.x + r, c.y + r, false));
     g.fillEllipse (juce::Rectangle<float> (r * 2.0f, r * 2.0f).withCentre (c));
-    g.setColour (juce::Colour (0xff4a4c50));
+    g.setColour (juce::Colour (0xff1c1d1f));
     const auto d = juce::Point<float> (std::cos (angle), std::sin (angle)) * (r * 0.75f);
     g.drawLine ({ c - d, c + d }, 1.6f);
 }
@@ -94,6 +95,11 @@ public:
                                                  juce::Colour (0xff141412), c.x, skirt.getBottom(), false));
         g.fillEllipse (skirt);
 
+        // Thin metal rim so the black skirt reads against the dark plate
+        g.setGradientFill (juce::ColourGradient (juce::Colour (0xff8a877f), c.x, skirt.getY(),
+                                                 juce::Colour (0xff2e2d2a), c.x, skirt.getBottom(), false));
+        g.drawEllipse (skirt.reduced (0.6f), 1.3f);
+
         // Skirt indicator line
         const float a = startAngle + pos * (endAngle - startAngle);
         g.setColour (silkCream);
@@ -118,7 +124,7 @@ public:
         g.drawEllipse (cap, 1.0f);
 
         // Pointer on the cap
-        g.setColour (s.isEnabled() ? engraving : engraving.withAlpha (0.35f));
+        g.setColour (s.isEnabled() ? ink : ink.withAlpha (0.35f));
         g.drawLine ({ c.getPointOnCircumference (capR * 0.25f, a), c.getPointOnCircumference (capR - 4.0f, a) }, large ? 3.2f : 2.4f);
 
         if (! s.isEnabled())
