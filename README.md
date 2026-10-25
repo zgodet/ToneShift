@@ -119,10 +119,10 @@ found by cross-correlation with the audio just played, and the two heads are
 crossfaded over 6 ms. The average delay is about 10–15 ms and nothing is
 looked ahead, so the plugin reports zero latency.
 
-## License
+## Credits
 
-ToneShift is built on [JUCE](https://juce.com). To distribute builds you need
-either a JUCE commercial license or to release ToneShift under the AGPLv3.
-Choose a license for this project and add a `LICENSE` file before publishing.
+* Created and maintained by [zgodet](https://github.com/zgodet) / Audemo.
+* Built with the help of [Claude](https://claude.ai/), Anthropic's AI assistant.
+* Uses the [JUCE](https://juce.com/) framework.
 
 © Audemo
