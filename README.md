@@ -124,5 +124,3 @@ looked ahead, so the plugin reports zero latency.
 * Created and maintained by [zgodet](https://github.com/zgodet) / Audemo.
 * Built with the help of [Claude](https://claude.ai/), Anthropic's AI assistant.
 * Uses the [JUCE](https://juce.com/) framework.
-
-© Audemo
