@@ -25,7 +25,7 @@ zero-latency mode for live use.
 - **Mix:** dry/wet blend. The dry signal is delayed to line up with the wet
   signal, so parallel blends don't comb-filter.
 - **Output:** -24 to +12 dB, with an analogue-style VU meter and peak lamp.
-- **Vintage hardware interface:** brushed-metal faceplate, cream knobs with
+- **Vintage hardware interface:** dark gunmetal faceplate, ivory knobs with
   printed scales, and an amber display that shows the pitch, ratio and latency,
   plus the value of any control while you move it.
 - Every control is automatable. Double-click any knob to reset it.

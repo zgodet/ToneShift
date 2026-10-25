@@ -67,7 +67,7 @@ void AmberDisplay::paint (juce::Graphics& g)
     auto r = getLocalBounds().toFloat();
 
     // Bezel and glass
-    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff5d5f63), 0.0f, r.getY(), juce::Colour (0xffe4e5e7), 0.0f, r.getBottom(), false));
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xff1a1b1d), 0.0f, r.getY(), juce::Colour (0xff6b6d71), 0.0f, r.getBottom(), false));
     g.fillRoundedRectangle (r, 6.0f);
     auto glassArea = r.reduced (4.0f);
     g.setColour (glass);
@@ -152,8 +152,8 @@ void VuMeter::paint (juce::Graphics& g)
     g.setGradientFill (juce::ColourGradient (charcoalHi, 0.0f, r.getY(), charcoal, 0.0f, r.getBottom(), false));
     g.fillRoundedRectangle (r, 6.0f);
     auto face = r.reduced (6.0f);
-    g.setGradientFill (juce::ColourGradient (juce::Colour (0xfff7e7b8), face.getCentreX(), face.getBottom(),
-                                             juce::Colour (0xffd9c48c), face.getX(), face.getY(), true));
+    g.setGradientFill (juce::ColourGradient (juce::Colour (0xffe8cb84), face.getCentreX(), face.getBottom(),
+                                             juce::Colour (0xffa9864a), face.getX(), face.getY(), true));
     g.fillRoundedRectangle (face, 3.0f);
 
     const float span = 0.85f; // radians either side of vertical
@@ -176,7 +176,7 @@ void VuMeter::paint (juce::Graphics& g)
     juce::Path arc, red;
     arc.addCentredArc (pivot.x, pivot.y, radius, radius, 0.0f, angleFor (-20.0f), angleFor (0.0f), true);
     red.addCentredArc (pivot.x, pivot.y, radius, radius, 0.0f, angleFor (0.0f), angleFor (3.0f), true);
-    g.setColour (engraving);
+    g.setColour (ink);
     g.strokePath (arc, juce::PathStrokeType (1.4f));
     g.setColour (lampRed);
     g.strokePath (red, juce::PathStrokeType (4.0f));
@@ -188,7 +188,7 @@ void VuMeter::paint (juce::Graphics& g)
         const float a = angleFor (vu);
         auto p1 = pivot.getPointOnCircumference (radius, a);
         auto p2 = pivot.getPointOnCircumference (radius + 6.0f, a);
-        g.setColour (mark > 0 ? lampRed : engraving);
+        g.setColour (mark > 0 ? lampRed : ink);
         g.drawLine ({ p1, p2 }, 1.2f);
         if (mark == -20 || mark == -10 || mark == -5 || mark == -3 || mark == 0 || mark == 3)
         {
@@ -198,7 +198,7 @@ void VuMeter::paint (juce::Graphics& g)
         }
     }
 
-    g.setColour (engraving);
+    g.setColour (ink);
     g.setFont (juce::FontOptions (15.0f, juce::Font::bold));
     g.drawText ("VU", face.withTrimmedTop (face.getHeight() * 0.45f).withHeight (20.0f), juce::Justification::centred);
 
@@ -220,7 +220,7 @@ void VuMeter::paint (juce::Graphics& g)
     }
     g.setColour (peakHold > 0 ? lampRed.brighter (0.3f) : lampRed.darker (1.6f));
     g.fillEllipse (lamp);
-    g.setColour (engraving);
+    g.setColour (ink);
     g.setFont (juce::FontOptions (8.0f, juce::Font::bold));
     g.drawText ("PEAK", lamp.translated (-30.0f, 0.0f).withWidth (26.0f), juce::Justification::centredRight);
 }
@@ -360,7 +360,7 @@ void ToneShiftEditor::renderFaceplate()
     juce::Random rnd (0x7a11);
     for (int y = 0; y < h; ++y)
     {
-        g.setColour ((rnd.nextBool() ? juce::Colours::white : juce::Colours::black).withAlpha (rnd.nextFloat() * 0.07f));
+        g.setColour ((rnd.nextBool() ? juce::Colours::white : juce::Colours::black).withAlpha (rnd.nextFloat() * 0.05f));
         g.drawHorizontalLine (y, 0.0f, (float) w);
     }
     for (int i = 0; i < 900; ++i)
@@ -368,12 +368,12 @@ void ToneShiftEditor::renderFaceplate()
         const float y = rnd.nextFloat() * (float) h;
         const float x = rnd.nextFloat() * (float) w;
         const float len = 40.0f + rnd.nextFloat() * 220.0f;
-        g.setColour ((rnd.nextBool() ? juce::Colours::white : juce::Colours::black).withAlpha (0.03f + rnd.nextFloat() * 0.05f));
+        g.setColour ((rnd.nextBool() ? juce::Colours::white : juce::Colours::black).withAlpha (0.02f + rnd.nextFloat() * 0.035f));
         g.drawHorizontalLine ((int) y, x, x + len);
     }
 
     // Soft light falloff
-    g.setGradientFill (juce::ColourGradient (juce::Colours::white.withAlpha (0.18f), (float) w * 0.3f, 0.0f,
+    g.setGradientFill (juce::ColourGradient (juce::Colours::white.withAlpha (0.07f), (float) w * 0.3f, 0.0f,
                                              juce::Colours::transparentBlack, (float) w * 0.3f, (float) h * 0.7f, true));
     g.fillAll();
 }
